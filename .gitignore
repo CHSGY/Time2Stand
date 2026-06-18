@@ -1,0 +1,24 @@
+# Python __pycache__
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller build artifacts
+dist/
+build/
+*.spec
+!/Sight_Habit_Keeper.spec
+
+# IDE / OS junk
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# AtomCode config
+.atomcode/
+
+# Backup files (archive/ is intentionally tracked)
