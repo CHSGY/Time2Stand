@@ -59,6 +59,10 @@ class StandUpApp:
         self.timer_id = None  # 存储after调用的ID，用于取消
         self.start_time = None  # 计时开始的时间点
         
+        # 休息状态变量
+        self.rest_start_time = None  # 休息开始时间
+        self.rest_window = None  # 休息对话框引用
+        
         # 初始化UI
         self.update_time()  # 启动时间更新
         self.check_inactive_timer()  # 启动空闲检测
@@ -134,15 +138,13 @@ class StandUpApp:
             # 停止计时器
             self.timer_running = False
             self.status_label.config(text="时间到！请起身活动")
+            self.minutes_entry.config(state=tk.NORMAL)
+            self.start_btn.config(state=tk.NORMAL)
+            self.stop_btn.config(state=tk.DISABLED)
 
-            # 弹出模态提醒窗口（会阻塞直到用户点击确定）
-            self.root.attributes('-topmost', 1)   # 窗口置顶
+            # 显示休息对话框
             minutes_text = int(self.countdown_seconds // 60)
-            messagebox.showinfo("休息提醒", f"您已连续工作{minutes_text}分钟，请离开座位！")
-            self.root.attributes('-topmost', 0)   # 取消置顶
-
-            # 用户点击确定后，自动重新开始倒计时
-            self.start_timer()
+            self.show_rest_dialog(minutes_text)
             return  # 退出函数，不递归调用
 
         # 计划下一次检查 - 每秒更新一次（递归实现）
@@ -152,6 +154,100 @@ class StandUpApp:
         """空闲状态监控 - 仅用于维持after事件循环，无实质逻辑"""
         # 每200毫秒递归调用自身（仅为维持事件循环，不执行任何阻塞操作）
         self.root.after(200, self.check_inactive_timer)
+
+    # ---------- 休息对话框（3分钟强制休息） ----------
+
+    def show_rest_dialog(self, worked_minutes):
+        """显示休息对话框，强制休息至少3分钟"""
+        self.rest_start_time = datetime.now()
+
+        # 创建顶级对话框
+        self.rest_window = tk.Toplevel(self.root)
+        self.rest_window.title("休息提醒")
+        self.rest_window.geometry("360x200")
+        self.rest_window.resizable(False, False)
+        self.rest_window.attributes('-topmost', True)
+
+        # 主消息
+        tk.Label(self.rest_window, text=f"您已连续工作{worked_minutes}分钟，请离开座位！",
+                 font=('Arial', 11)).pack(pady=(15, 5))
+
+        # 休息倒计时标签
+        self.rest_countdown_label = tk.Label(
+            self.rest_window,
+            text="还需休息 3:00",
+            font=('Arial', 14, 'bold'),
+            fg='blue'
+        )
+        self.rest_countdown_label.pack(pady=(5, 5))
+
+        # 按钮框架
+        rest_btn_frame = tk.Frame(self.rest_window)
+        rest_btn_frame.pack(pady=(10, 5))
+
+        # 确认重新开始按钮（始终可用，但3分钟内点击会弹出警告）
+        self.rest_confirm_btn = tk.Button(
+            rest_btn_frame, text="确认重新开始",
+            width=14, command=self.rest_confirm
+        )
+        self.rest_confirm_btn.pack(side='left', padx=5)
+
+        # 忽略按钮 - 取消3分钟限制，立即重新开始
+        tk.Button(
+            rest_btn_frame, text="忽略",
+            width=8, command=self.rest_ignore
+        ).pack(side='left', padx=5)
+
+        # 窗口关闭事件绑定（关闭窗口等同于忽略）
+        self.rest_window.protocol("WM_DELETE_WINDOW", self.rest_ignore)
+
+        # 启动休息倒计时更新
+        self.update_rest_countdown()
+
+    def update_rest_countdown(self):
+        """更新休息倒计时显示"""
+        if self.rest_window is None or not self.rest_window.winfo_exists():
+            return
+
+        elapsed = (datetime.now() - self.rest_start_time).total_seconds()
+        remaining = max(0, 180 - elapsed)  # 180秒 = 3分钟
+
+        mins, secs = divmod(int(remaining), 60)
+
+        if remaining <= 0:
+            self.rest_countdown_label.config(
+                text="休息时间到，可以继续工作了！", fg='green'
+            )
+            return
+
+        self.rest_countdown_label.config(text=f"还需休息 {mins:02d}:{secs:02d}")
+
+        # 每秒更新一次
+        self.rest_window.after(1000, self.update_rest_countdown)
+
+    def rest_confirm(self):
+        """点击确认重新开始 - 3分钟内弹出警告，3分钟后才生效"""
+        if self.rest_window is None or not self.rest_window.winfo_exists():
+            return
+
+        elapsed = (datetime.now() - self.rest_start_time).total_seconds()
+        if elapsed < 180:
+            # 还没到3分钟，弹出警告
+            messagebox.showwarning("休息不足", "至少休息3分钟才可以继续工作哦~")
+            self.root.attributes('-topmost', 0)
+            return
+
+        # 3分钟已到，正常重新开始
+        self.rest_window.destroy()
+        self.rest_window = None
+        self.start_timer()
+
+    def rest_ignore(self):
+        """忽略3分钟限制，立即重新开始计时"""
+        if self.rest_window and self.rest_window.winfo_exists():
+            self.rest_window.destroy()
+        self.rest_window = None
+        self.start_timer()
 
 if __name__ == "__main__":
     root = tk.Tk()  # 创建主窗口
