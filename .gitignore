@@ -21,4 +21,5 @@ Thumbs.db
 # AtomCode config
 .atomcode/
 
-# Backup files (archive/ is intentionally tracked)
+# Backup files (archive/ is intentionally tracked for source)
+archive/*.exe
