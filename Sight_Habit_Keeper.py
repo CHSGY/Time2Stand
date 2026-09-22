@@ -15,6 +15,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 from config import load_config, save_config
+import stats
 
 # ---------- 日志配置 ----------
 
@@ -185,6 +186,13 @@ class StandUpApp:
             state=tk.DISABLED
         )
         self.stop_btn.pack(side='left')
+
+        # ---------- 统计看板按钮 ----------
+        self.stats_btn = tk.Button(
+            root, text="📊 统计看板",
+            width=21, command=lambda: stats.show_dashboard(root)
+        )
+        self.stats_btn.pack(pady=(0, 5))
 
         # ---------- 状态初始化 ----------
         self.timer_running = False
@@ -357,6 +365,12 @@ class StandUpApp:
                 self.root.after_cancel(self._idle_check_id)
                 self._idle_check_id = None
 
+            # 统计：手动停止计为打断，并记录已工作时长
+            if self.start_time is not None:
+                worked = int((datetime.now() - self.start_time).total_seconds())
+                stats.record_work(worked, self._mode_var.get())
+            stats.record_interruption()
+
             self.minutes_entry.config(state=tk.NORMAL)
             self.status_label.config(text="已停止")
             self.start_btn.config(state=tk.NORMAL)
@@ -385,6 +399,12 @@ class StandUpApp:
 
         if remaining <= 0:
             self.timer_running = False
+            # 统计：完整工作段结束，记录时长
+            if self.start_time is not None:
+                stats.record_work(
+                    int((datetime.now() - self.start_time).total_seconds()),
+                    self._mode_var.get(),
+                )
             self.minutes_entry.config(state=tk.NORMAL)
             self.start_btn.config(state=tk.NORMAL)
             self.stop_btn.config(state=tk.DISABLED)
@@ -559,12 +579,17 @@ class StandUpApp:
             messagebox.showwarning("休息不足", "至少休息3分钟才可以继续工作哦~")
             return
 
+        # 统计：一次完整休息
+        stats.record_rest_completed()
+
         self.rest_window.destroy()
         self.rest_window = None
         self._on_rest_complete()
 
     def rest_ignore(self) -> None:
         """忽略休息限制，立即重新开始"""
+        # 统计：忽略休息提醒计为打断
+        stats.record_interruption()
         if self.rest_window and self.rest_window.winfo_exists():
             self.rest_window.destroy()
         self.rest_window = None
