@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw
 
 from config import load_config, save_config
 import stats
+import gamification
 
 # ---------- 日志配置 ----------
 
@@ -192,7 +193,14 @@ class StandUpApp:
             root, text="📊 统计看板",
             width=21, command=lambda: stats.show_dashboard(root)
         )
-        self.stats_btn.pack(pady=(0, 5))
+        self.stats_btn.pack()
+
+        # ---------- 成就系统按钮 ----------
+        self.achievements_btn = tk.Button(
+            root, text="🏆 我的成就",
+            width=21, command=lambda: gamification.show_achievements(root)
+        )
+        self.achievements_btn.pack(pady=(3, 5))
 
         # ---------- 状态初始化 ----------
         self.timer_running = False
@@ -581,6 +589,8 @@ class StandUpApp:
 
         # 统计：一次完整休息
         stats.record_rest_completed()
+        # 游戏化：检查是否有新徽章解锁
+        gamification.check_and_notify(self.root)
 
         self.rest_window.destroy()
         self.rest_window = None
