@@ -149,23 +149,24 @@ def show_achievements(root: tk.Tk) -> None:
         return
 
     win.title(tr("ach_title"))
-    win.geometry("380x500")
+    win.geometry("400x520")
     win.resizable(False, False)
     win.attributes("-topmost", True)
     theme.setup_window(win)
 
     # 可滚动容器：内容超出窗口时可用滚轮查看
-    outer, canvas, content = theme.scrollable(win, height=440)
-    outer.pack(fill="both", expand=True, padx=4, pady=(4, 0))
+    # 外层统一留出 18px 边距，内容与关闭按钮左右对齐
+    outer, canvas, content = theme.scrollable(win, height=452)
+    outer.pack(fill="both", expand=True, padx=18, pady=(6, 0))
 
     theme.label(
         content, tr("ach_heading"),
         font=theme.font(13, "bold"),
-    ).pack(pady=(14, 4))
+    ).pack(pady=(12, 6))
 
     # 打卡概览（白色卡片：连击大字 + 汇总行）
     overview = theme.card(content)
-    overview.pack(fill="x", padx=16, pady=5)
+    overview.pack(fill="x", pady=6)
     theme.label(
         overview,
         text=tr("streak_hero", n=streak),
@@ -184,7 +185,7 @@ def show_achievements(root: tk.Tk) -> None:
 
     # 打卡日历（最近 14 天，今天的排在最右）
     cal_frame = theme.card(content)
-    cal_frame.pack(fill="x", padx=16, pady=5)
+    cal_frame.pack(fill="x", pady=6)
     theme.label(
         cal_frame, tr("cal_frame"),
         font=theme.font(9, "bold"), fg=theme.PRIMARY,
@@ -206,7 +207,7 @@ def show_achievements(root: tk.Tk) -> None:
 
     # 徽章墙
     wall = theme.card(content)
-    wall.pack(fill="x", padx=16, pady=5)
+    wall.pack(fill="x", pady=6)
     theme.label(
         wall, tr("badge_wall"),
         font=theme.font(9, "bold"), fg=theme.PRIMARY,
@@ -240,7 +241,7 @@ def show_achievements(root: tk.Tk) -> None:
 
     close_btn = tk.Button(win, text=tr("close_btn"), width=11, command=win.destroy)
     theme.style_button(close_btn, "subtle")
-    close_btn.pack(pady=(6, 10))
+    close_btn.pack(pady=(6, 12))
 
 
 # ---------- 新徽章通知 ----------

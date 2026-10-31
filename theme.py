@@ -116,14 +116,15 @@ def setup_window(win: tk.Misc, bg: str = BG) -> None:
 def scrollable(parent: tk.Misc, height: int) -> tuple[tk.Frame, tk.Canvas, tk.Frame]:
     """创建垂直滚动容器，返回 (outer, canvas, inner)。
 
-    内容放进 inner；内容尺寸变化时自动扩展 scrollregion。
+    内容放进 inner；inner 宽度始终跟随画布宽度（内容横向撑满），
+    内容纵向尺寸变化时自动扩展 scrollregion。
     滚轮事件在内容构建完成后调用 enable_wheel() 绑定。
     """
     outer = tk.Frame(parent, bg=BG)
     canvas = tk.Canvas(
         outer, bg=BG, bd=0, highlightthickness=0, height=height,
     )
-    vsb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+    vsb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview, width=10)
     canvas.configure(yscrollcommand=vsb.set)
     vsb.pack(side="right", fill="y")
     canvas.pack(side="left", fill="both", expand=True)
@@ -132,11 +133,15 @@ def scrollable(parent: tk.Misc, height: int) -> tuple[tk.Frame, tk.Canvas, tk.Fr
     win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
 
     def _on_inner_configure(event: "tk.Event[tk.Misc]") -> None:
+        # 内容高度变化 → 更新滚动范围
         canvas.configure(scrollregion=canvas.bbox("all"))
-        # 内容宽度跟随画布，避免横向溢出
+
+    def _on_canvas_configure(event: "tk.Event[tk.Misc]") -> None:
+        # 画布宽度变化 → 内容窗口横向撑满画布（修复内容挤在左侧）
         canvas.itemconfigure(win_id, width=event.width)
 
     inner.bind("<Configure>", _on_inner_configure)
+    canvas.bind("<Configure>", _on_canvas_configure)
     return outer, canvas, inner
 
 
