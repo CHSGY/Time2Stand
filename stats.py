@@ -125,7 +125,7 @@ def _sum_range(start: date, end: date, days: dict[str, dict[str, int]]) -> dict[
     return total
 
 
-def get_summary() -> dict[str, dict[str, Any]]:
+def get_summary() -> dict[str, Any]:
     """生成看板数据：今日 / 本周（ISO 周）/ 本月 汇总及最近 7 天明细"""
     days = load_stats()
     today = date.today()

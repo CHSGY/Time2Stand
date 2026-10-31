@@ -5,6 +5,7 @@ Time2Stand (久坐提醒器) — a Windows desktop "sit-less reminder" in Python
 ## Commands
 
 - Run: `python Sight_Habit_Keeper.py` — requires `pip install pystray pillow`
+- Type check: `py -m mypy Sight_Habit_Keeper.py config.py stats.py gamification.py i18n.py` — requires `pip install mypy`; config in `mypy.ini` (ignore_missing_imports for pystray/Pillow stubs), must pass with 0 errors
 - Package: `pyinstaller Sight_Habit_Keeper.spec` → `dist/Sight_Habit_Keeper.exe`
 - No tests, linter, formatter, or CI exist. Don't invent a test framework for small fixes.
 

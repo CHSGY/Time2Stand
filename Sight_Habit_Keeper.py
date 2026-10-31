@@ -484,6 +484,8 @@ class StandUpApp:
             self._idle_check_id = self.root.after(5000, self.timer_cycle)
             return
 
+        if self.start_time is None:  # 理论上不会发生，仅类型收窄
+            return
         elapsed = (datetime.now() - self.start_time).total_seconds()
         remaining = max(0, self.countdown_seconds - elapsed)
 
@@ -498,7 +500,7 @@ class StandUpApp:
             if self.start_time is not None:
                 stats.record_work(
                     int((datetime.now() - self.start_time).total_seconds()),
-                    self._mode_var.get(),
+                    self._mode,
                 )
             self.minutes_entry.config(state=tk.NORMAL)
             self.start_btn.config(state=tk.NORMAL)
@@ -645,12 +647,16 @@ class StandUpApp:
         """更新休息倒计时显示"""
         if self.rest_window is None or not self.rest_window.winfo_exists():
             return
+        if self.rest_start_time is None:  # 理论上不会发生，仅类型收窄
+            return
 
         elapsed = (datetime.now() - self.rest_start_time).total_seconds()
         remaining = max(0, self._break_seconds - elapsed)
 
         mins, secs = divmod(int(remaining), 60)
 
+        if self.rest_countdown_label is None:  # 类型收窄
+            return
         if remaining <= 0:
             self.rest_countdown_label.config(
                 text=tr("rest_done"), fg='green'
@@ -666,6 +672,8 @@ class StandUpApp:
     def rest_confirm(self) -> None:
         """点击确认重新开始"""
         if self.rest_window is None or not self.rest_window.winfo_exists():
+            return
+        if self.rest_start_time is None:  # 理论上不会发生，仅类型收窄
             return
 
         elapsed = (datetime.now() - self.rest_start_time).total_seconds()
