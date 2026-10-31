@@ -32,7 +32,7 @@ def _get_config_path() -> str:
 def load_config() -> dict[str, Any]:
     """从 JSON 文件加载配置，不存在则返回默认值"""
     path = _get_config_path()
-    defaults: dict[str, Any] = {"countdown_minutes": 30}
+    defaults: dict[str, Any] = {"countdown_minutes": 30, "language": "zh"}
     try:
         if os.path.isfile(path):
             with open(path, "r", encoding="utf-8") as f:

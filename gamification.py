@@ -17,6 +17,7 @@ from typing import Any
 
 import stats
 from config import _get_config_dir
+from i18n import tr
 
 logger = logging.getLogger("SightHabitKeeper")
 
@@ -24,18 +25,28 @@ STATE_FILE_NAME: str = "SightHabitKeeper_gamification.json"
 
 # ---------- 徽章定义 ----------
 
-# (id, 图标, 名称, 类型, 阈值, 描述)
+# (id, 图标, 类型, 阈值)；名称与描述按 id 从 i18n 取（badge_<id>_name / _desc）
 BADGES: list[dict[str, Any]] = [
-    {"id": "rest_1",   "icon": "🌱", "name": "第一滴汗水", "kind": "rest",  "threshold": 1,     "desc": "完成 1 次完整休息"},
-    {"id": "rest_10",  "icon": "💧", "name": "润物无声",   "kind": "rest",  "threshold": 10,    "desc": "完成 10 次完整休息"},
-    {"id": "rest_50",  "icon": "🌊", "name": "休息达人",   "kind": "rest",  "threshold": 50,    "desc": "完成 50 次完整休息"},
-    {"id": "streak_3", "icon": "🔥", "name": "三日之约",   "kind": "streak", "threshold": 3,    "desc": "连续打卡 3 天"},
-    {"id": "streak_7", "icon": "⚡", "name": "七日连续",   "kind": "streak", "threshold": 7,    "desc": "连续打卡 7 天"},
-    {"id": "streak_30","icon": "🏔️", "name": "三十日如一", "kind": "streak", "threshold": 30,   "desc": "连续打卡 30 天"},
-    {"id": "work_1",   "icon": "⏰", "name": "初露锋芒",   "kind": "work",  "threshold": 3600,   "desc": "累计工作 1 小时"},
-    {"id": "work_10",  "icon": "💪", "name": "久坐克星",   "kind": "work",  "threshold": 36000,  "desc": "累计工作 10 小时"},
-    {"id": "work_50",  "icon": "👑", "name": "时间主宰",   "kind": "work",  "threshold": 180000, "desc": "累计工作 50 小时"},
+    {"id": "rest_1",    "icon": "🌱", "kind": "rest",   "threshold": 1},
+    {"id": "rest_10",   "icon": "💧", "kind": "rest",   "threshold": 10},
+    {"id": "rest_50",   "icon": "🌊", "kind": "rest",   "threshold": 50},
+    {"id": "streak_3",  "icon": "🔥", "kind": "streak", "threshold": 3},
+    {"id": "streak_7",  "icon": "⚡", "kind": "streak", "threshold": 7},
+    {"id": "streak_30", "icon": "🏔️", "kind": "streak", "threshold": 30},
+    {"id": "work_1",    "icon": "⏰", "kind": "work",   "threshold": 3600},
+    {"id": "work_10",   "icon": "💪", "kind": "work",   "threshold": 36000},
+    {"id": "work_50",   "icon": "👑", "kind": "work",   "threshold": 180000},
 ]
+
+
+def badge_name(b: dict[str, Any]) -> str:
+    """徽章的本地化名称"""
+    return tr(f"badge_{b['id']}_name")
+
+
+def badge_desc(b: dict[str, Any]) -> str:
+    """徽章的本地化描述"""
+    return tr(f"badge_{b['id']}_desc")
 
 
 # ---------- 状态持久化（仅存已展示的新徽章通知标记） ----------
@@ -118,8 +129,8 @@ def get_unlocked_ids(days: dict[str, dict[str, int]]) -> list[str]:
 def _fmt_hours(seconds: int) -> str:
     hours = seconds / 3600
     if hours < 1:
-        return f"{seconds // 60}分钟"
-    return f"{hours:.1f}小时"
+        return tr("duration_m", m=seconds // 60)
+    return tr("duration_h", h=f"{hours:.1f}")
 
 
 def show_achievements(root: tk.Tk) -> None:
@@ -136,24 +147,29 @@ def show_achievements(root: tk.Tk) -> None:
         logger.error("创建成就窗口失败：%s", e)
         return
 
-    win.title("我的成就")
+    win.title(tr("ach_title"))
     win.geometry("380x480")
     win.resizable(False, False)
     win.attributes("-topmost", True)
 
-    tk.Label(win, text="🏆 我的成就", font=("Arial", 14, "bold")).pack(pady=(12, 4))
+    tk.Label(win, text=tr("ach_heading"), font=("Arial", 14, "bold")).pack(pady=(12, 4))
 
     # 打卡概览
     overview = tk.Frame(win)
     overview.pack(pady=2)
     tk.Label(
         overview,
-        text=f"🔥 连续打卡 {streak} 天    🌿 累计休息 {totals['rest']} 次    ⏱️ 累计工作 {_fmt_hours(totals['work'])}",
+        text=tr(
+            "ach_overview",
+            streak=streak,
+            rest=totals["rest"],
+            work=_fmt_hours(totals["work"]),
+        ),
         font=("Arial", 10),
     ).pack()
 
     # 打卡日历（最近 14 天，今天的排在最右）
-    cal_frame = tk.LabelFrame(win, text="最近 14 天打卡", font=("Arial", 10))
+    cal_frame = tk.LabelFrame(win, text=tr("cal_frame"), font=("Arial", 10))
     cal_frame.pack(fill="x", padx=15, pady=6)
     cal_row = tk.Frame(cal_frame)
     cal_row.pack(pady=4)
@@ -165,10 +181,10 @@ def show_achievements(root: tk.Tk) -> None:
             cal_row, text=mark, font=("Arial", 11),
             fg="green" if d.isoformat() in checked else "#bbbbbb",
         ).pack(side="left", expand=True)
-    tk.Label(cal_frame, text="✅ 已打卡（当日完成过完整休息）", font=("Arial", 8), fg="#888888").pack(pady=(0, 4))
+    tk.Label(cal_frame, text=tr("cal_legend"), font=("Arial", 8), fg="#888888").pack(pady=(0, 4))
 
     # 徽章墙
-    wall = tk.LabelFrame(win, text="成就徽章", font=("Arial", 10))
+    wall = tk.LabelFrame(win, text=tr("badge_wall"), font=("Arial", 10))
     wall.pack(fill="both", expand=True, padx=15, pady=6)
     for b in BADGES:
         row = tk.Frame(wall)
@@ -178,19 +194,19 @@ def show_achievements(root: tk.Tk) -> None:
         name_color = "#222222" if is_unlocked else "#aaaaaa"
         tk.Label(row, text=icon, font=("Arial", 13)).pack(side="left", padx=(0, 6))
         tk.Label(
-            row, text=b["name"], font=("Arial", 10, "bold"),
+            row, text=badge_name(b), font=("Arial", 10, "bold"),
             fg=name_color, width=10, anchor="w",
         ).pack(side="left")
         tk.Label(
             row,
-            text=b["desc"] if is_unlocked else f"未解锁 · {b['desc']}",
+            text=badge_desc(b) if is_unlocked else tr("badge_locked", desc=badge_desc(b)),
             font=("Arial", 8),
             fg="#888888" if is_unlocked else "#cccccc",
         ).pack(side="left", padx=(0, 4))
         if is_unlocked:
-            tk.Label(row, text="已解锁", font=("Arial", 8, "bold"), fg="green").pack(side="right")
+            tk.Label(row, text=tr("badge_unlocked"), font=("Arial", 8, "bold"), fg="green").pack(side="right")
 
-    tk.Button(win, text="关闭", width=10, command=win.destroy).pack(pady=(6, 10))
+    tk.Button(win, text=tr("close_btn"), width=10, command=win.destroy).pack(pady=(6, 10))
 
 
 # ---------- 新徽章通知 ----------
@@ -208,19 +224,19 @@ def check_and_notify(root: tk.Tk) -> None:
         if not fresh:
             return
 
-        text = "  ".join(f"{b['icon']} {b['name']}" for b in fresh)
+        text = "  ".join(f"{b['icon']} {badge_name(b)}" for b in fresh)
         _save_notified(notified + [b["id"] for b in fresh])
-        logger.info("解锁新徽章：%s", "、".join(b["name"] for b in fresh))
+        logger.info("解锁新徽章：%s", "、".join(badge_name(b) for b in fresh))
 
         try:
             toast = tk.Toplevel(root)
         except tk.TclError:
             return
-        toast.title("成就解锁")
+        toast.title(tr("toast_title"))
         toast.geometry("320x120")
         toast.resizable(False, False)
         toast.attributes("-topmost", True)
-        tk.Label(toast, text="🎉 解锁新成就！", font=("Arial", 12, "bold")).pack(pady=(18, 4))
+        tk.Label(toast, text=tr("toast_heading"), font=("Arial", 12, "bold")).pack(pady=(18, 4))
         tk.Label(toast, text=text, font=("Arial", 11)).pack()
         toast.after(4000, toast.destroy)
     except Exception as e:  # 游戏化属于附加功能，任何异常不影响主流程

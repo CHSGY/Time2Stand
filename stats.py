@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from config import _get_config_dir
+from i18n import tr
 
 logger = logging.getLogger("SightHabitKeeper")
 
@@ -153,8 +154,8 @@ def _fmt_duration(seconds: int) -> str:
     minutes = seconds // 60
     hours, mins = divmod(minutes, 60)
     if hours > 0:
-        return f"{hours}小时{mins}分"
-    return f"{mins}分钟"
+        return tr("duration_hm", h=hours, m=mins)
+    return tr("duration_m", m=mins)
 
 
 def _interruption_rate(day: dict[str, int]) -> str:
@@ -176,22 +177,22 @@ def show_dashboard(root: tk.Tk) -> None:
         logger.error("创建统计看板失败：%s", e)
         return
 
-    win.title("统计看板")
+    win.title(tr("dashboard_title"))
     win.geometry("360x420")
     win.resizable(False, False)
     win.attributes("-topmost", True)
 
-    tk.Label(win, text="📊 数据统计看板", font=("Arial", 14, "bold")).pack(pady=(12, 6))
+    tk.Label(win, text=tr("dashboard_heading"), font=("Arial", 14, "bold")).pack(pady=(12, 6))
 
     def section(title: str, day: dict[str, Any]) -> None:
         """渲染一个汇总区块"""
         frame = tk.LabelFrame(win, text=title, font=("Arial", 10))
         frame.pack(fill="x", padx=15, pady=6)
         rows = [
-            ("工作时长", _fmt_duration(day.get("work_seconds", 0))),
-            ("其中番茄模式", _fmt_duration(day.get("pomodoro_work_seconds", 0))),
-            ("完整休息", f"{day.get('rest_completed', 0)} 次"),
-            ("打断率", _interruption_rate(day)),
+            (tr("row_work"), _fmt_duration(day.get("work_seconds", 0))),
+            (tr("row_pomodoro"), _fmt_duration(day.get("pomodoro_work_seconds", 0))),
+            (tr("row_rest"), tr("unit_times", n=day.get("rest_completed", 0))),
+            (tr("row_rate"), _interruption_rate(day)),
         ]
         for name, value in rows:
             row = tk.Frame(frame)
@@ -200,12 +201,12 @@ def show_dashboard(root: tk.Tk) -> None:
             tk.Label(row, text=value, font=("Arial", 9, "bold"), anchor="e").pack(side="right")
 
     today = summary["today"]
-    section(f"今日（{today['date']}）", today)
-    section("本周", summary["week"])
-    section("本月", summary["month"])
+    section(tr("section_today", date=today["date"]), today)
+    section(tr("section_week"), summary["week"])
+    section(tr("section_month"), summary["month"])
 
     # 最近 7 天简表
-    recent_frame = tk.LabelFrame(win, text="最近 7 天工作时长", font=("Arial", 10))
+    recent_frame = tk.LabelFrame(win, text=tr("recent7"), font=("Arial", 10))
     recent_frame.pack(fill="x", padx=15, pady=6)
     for day_str, day in summary["recent_days"]:
         row = tk.Frame(recent_frame)
@@ -216,4 +217,4 @@ def show_dashboard(root: tk.Tk) -> None:
             font=("Arial", 8), anchor="e",
         ).pack(side="right")
 
-    tk.Button(win, text="关闭", width=10, command=win.destroy).pack(pady=(8, 10))
+    tk.Button(win, text=tr("close_btn"), width=10, command=win.destroy).pack(pady=(8, 10))
