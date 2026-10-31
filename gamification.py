@@ -134,30 +134,17 @@ def _fmt_hours(seconds: int) -> str:
     return tr("duration_h", h=f"{hours:.1f}")
 
 
-def show_achievements(root: tk.Tk) -> None:
-    """弹出成就窗口：连续打卡 + 徽章墙 + 打卡日历（最近 14 天）"""
+def build_achievements(parent: tk.Misc) -> None:
+    """在给定容器内渲染成就内容（嵌入主界面选项卡，每次调用重建）"""
     days = stats.load_stats()
     streak = get_streak(days)
     totals = get_totals(days)
     unlocked = set(get_unlocked_ids(days))
     checked = get_checkin_set(days)
 
-    try:
-        win = tk.Toplevel(root)
-    except tk.TclError as e:
-        logger.error("创建成就窗口失败：%s", e)
-        return
-
-    win.title(tr("ach_title"))
-    win.geometry("400x520")
-    win.resizable(False, False)
-    win.attributes("-topmost", True)
-    theme.setup_window(win)
-
-    # 可滚动容器：内容超出窗口时可用滚轮查看
-    # 外层统一留出 18px 边距，内容与关闭按钮左右对齐
-    outer, canvas, content = theme.scrollable(win, height=452)
-    outer.pack(fill="both", expand=True, padx=18, pady=(6, 0))
+    # 可滚动容器：内容超出可视区时可用滚轮查看
+    outer, canvas, content = theme.scrollable(parent, height=452)
+    outer.pack(fill="both", expand=True)
 
     theme.label(
         content, tr("ach_heading"),
@@ -166,7 +153,7 @@ def show_achievements(root: tk.Tk) -> None:
 
     # 打卡概览（白色卡片：连击大字 + 汇总行）
     overview = theme.card(content)
-    overview.pack(fill="x", pady=6)
+    overview.pack(fill="x", padx=12, pady=6)
     theme.label(
         overview,
         text=tr("streak_hero", n=streak),
@@ -185,7 +172,7 @@ def show_achievements(root: tk.Tk) -> None:
 
     # 打卡日历（最近 14 天，今天的排在最右）
     cal_frame = theme.card(content)
-    cal_frame.pack(fill="x", pady=6)
+    cal_frame.pack(fill="x", padx=12, pady=6)
     theme.label(
         cal_frame, tr("cal_frame"),
         font=theme.font(9, "bold"), fg=theme.PRIMARY,
@@ -207,7 +194,7 @@ def show_achievements(root: tk.Tk) -> None:
 
     # 徽章墙
     wall = theme.card(content)
-    wall.pack(fill="x", pady=6)
+    wall.pack(fill="x", padx=12, pady=6)
     theme.label(
         wall, tr("badge_wall"),
         font=theme.font(9, "bold"), fg=theme.PRIMARY,
@@ -238,10 +225,8 @@ def show_achievements(root: tk.Tk) -> None:
     # 内容构建完成后绑定滚轮（滚动容器 + 递归子控件）
     theme.enable_wheel(canvas, content)
     canvas.update_idletasks()
-
-    close_btn = tk.Button(win, text=tr("close_btn"), width=11, command=win.destroy)
-    theme.style_button(close_btn, "subtle")
-    close_btn.pack(pady=(6, 12))
+    # 底部留白，防止卡片贴边
+    tk.Frame(content, bg=theme.BG, height=8).pack()
 
 
 # ---------- 新徽章通知 ----------

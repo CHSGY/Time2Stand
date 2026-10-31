@@ -123,6 +123,7 @@ class StandUpApp:
     countdown_seconds: int
     rest_countdown_label: tk.Label | None
     rest_confirm_btn: tk.Button | None
+    _rest_warn_frame: tk.Frame | None
     # 系统托盘
     _tray_icon: pystray.Icon | None
     _tray_thread: threading.Thread | None
@@ -130,9 +131,10 @@ class StandUpApp:
     _idle_check_id: str | None
     # 休息对话框
     _break_seconds: int
-    # 統计/成就入口按钮
-    stats_btn: tk.Button
-    achievements_btn: tk.Button
+    # 顶部选项卡（主界面 / 统计看板 / 我的成就）
+    _tab_btns: dict[str, tk.Button]
+    _tab_frames: dict[str, tk.Frame]
+    _active_tab: str
     # 番茄工作法
     _mode: str
     _mode_menu: tk.OptionMenu
@@ -156,22 +158,51 @@ class StandUpApp:
         root.resizable(False, False)
         theme.setup_window(root)
 
+        # ---------- 顶部选项卡：主界面 / 统计看板 / 我的成就 ----------
+        tab_bar = tk.Frame(root, bg=theme.BG)
+        tab_bar.pack(fill="x", padx=8, pady=(8, 2))
+        self._tab_btns = {}
+        self._tab_frames = {}
+        self._active_tab = "home"
+        for name, label_key in (
+            ("home", "tab_home"),
+            ("dashboard", "dashboard_btn"),
+            ("achievements", "achievements_btn"),
+        ):
+            btn = tk.Button(tab_bar, text=tr(label_key), width=10)
+            theme.style_button(btn, "ghost", font=theme.font(9))
+
+            def _switch(n: str = name) -> None:
+                self._show_tab(n)
+
+            btn.config(command=_switch)
+            btn.pack(side="left", fill="x", expand=True, padx=2)
+            self._tab_btns[name] = btn
+
+        # ---------- 选项卡内容容器 ----------
+        self._content = tk.Frame(root, bg=theme.BG)
+        self._content.pack(fill="both", expand=True)
+
+        # 首页选项卡（其余选项卡在首次切换时按需重建，保证数据最新）
+        home = tk.Frame(self._content, bg=theme.BG)
+        self._tab_frames["home"] = home
+
         # ---------- 顶部：弱化的时钟 ----------
         self.time_label = tk.Label(
-            root, text=tr("current_time", time=""),
+            home, text=tr("current_time", time=""),
             font=theme.font(9), fg=theme.MUTED,
         )
-        self.time_label.pack(pady=(14, 2))
+        self.time_label.pack(pady=(10, 2))
 
         # ---------- hero：状态/倒计时大字 ----------
         self.status_label = tk.Label(
-            root, text=tr("ready"),
+            home, text=tr("ready"),
             font=theme.font(17, "bold"), fg=theme.MUTED,
         )
         self.status_label.pack(pady=(2, 10))
 
         # ---------- 模式选择 ----------
-        mode_frame = tk.Frame(root, bg=theme.BG)
+        mode_frame = tk.Frame(home, bg=theme.BG)
         mode_frame.pack(pady=3, fill='x', padx=40)
         theme.label(mode_frame, tr("mode"), font=theme.font(9), fg=theme.MUTED).pack(side='left')
         self._mode = "normal"  # 内部模式值：normal / pomodoro
@@ -183,7 +214,7 @@ class StandUpApp:
         self._mode_var.trace_add("write", self._on_mode_change)
 
         # ---------- 倒计时设置 ----------
-        self.settings_frame = tk.Frame(root, bg=theme.BG)
+        self.settings_frame = tk.Frame(home, bg=theme.BG)
         self.settings_frame.pack(pady=3, fill='x', padx=40)
 
         self.settings_label = theme.label(
@@ -207,7 +238,7 @@ class StandUpApp:
         self.minutes_entry.pack(side='left', padx=(5, 0))
 
         # ---------- 按钮框架 ----------
-        self.btn_frame = tk.Frame(root, bg=theme.BG)
+        self.btn_frame = tk.Frame(home, bg=theme.BG)
         self.btn_frame.pack(pady=12, fill='x', padx=40)
 
         self.start_btn = tk.Button(
@@ -225,24 +256,8 @@ class StandUpApp:
         theme.style_button(self.stop_btn, "subtle")
         self.stop_btn.pack(side='left')
 
-        # ---------- 统计看板按钮 ----------
-        self.stats_btn = tk.Button(
-            root, text=tr("dashboard_btn"),
-            width=20, command=lambda: stats.show_dashboard(root)
-        )
-        theme.style_button(self.stats_btn, "ghost")
-        self.stats_btn.pack(pady=(2, 0))
-
-        # ---------- 成就系统按钮 ----------
-        self.achievements_btn = tk.Button(
-            root, text=tr("achievements_btn"),
-            width=20, command=lambda: gamification.show_achievements(root)
-        )
-        theme.style_button(self.achievements_btn, "ghost")
-        self.achievements_btn.pack(pady=(3, 6))
-
         # ---------- 语言切换 ----------
-        lang_frame = tk.Frame(root, bg=theme.BG)
+        lang_frame = tk.Frame(home, bg=theme.BG)
         lang_frame.pack(pady=2, fill='x', padx=40)
         theme.label(lang_frame, tr("language"), font=theme.font(9), fg=theme.MUTED).pack(side='left')
         self._lang_var = tk.StringVar(value=self._lang_display())
@@ -275,6 +290,9 @@ class StandUpApp:
 
         # 绑定关闭事件 → 最小化到托盘
         root.protocol("WM_DELETE_WINDOW", self._minimize_to_tray)
+
+        # 显示默认选项卡
+        self._show_tab("home")
 
         # 启动托盘图标
         self.root.after(200, self._setup_tray)
@@ -394,7 +412,60 @@ class StandUpApp:
             self.minutes_var.set(str(self._config.get("countdown_minutes", 30)))
         self.minutes_entry.config(state=tk.NORMAL)
 
-    # ---------- 语言切换 ----------
+    # ---------- 选项卡切换 ----------
+
+    _TAB_GEOMETRY: dict[str, str] = {
+        "home": "320x360",
+        "dashboard": "380x470",
+        "achievements": "400x530",
+    }
+    _TAB_LABEL_KEYS: dict[str, str] = {
+        "home": "tab_home",
+        "dashboard": "dashboard_btn",
+        "achievements": "achievements_btn",
+    }
+
+    def _show_tab(self, name: str) -> None:
+        """切换顶部选项卡；看板/成就每次切入时重建以展示最新数据"""
+        if name not in self._TAB_GEOMETRY:
+            return
+        self._active_tab = name
+
+        # 隐藏其它选项卡
+        for tab_name, frame in self._tab_frames.items():
+            if tab_name != name:
+                frame.pack_forget()
+
+        # 看板/成就：重建内容保证数据与语言最新
+        if name in ("dashboard", "achievements"):
+            old = self._tab_frames.get(name)
+            if old is not None:
+                old.destroy()
+            tab_frame = tk.Frame(self._content, bg=theme.BG)
+            self._tab_frames[name] = tab_frame
+            if name == "dashboard":
+                stats.build_dashboard(tab_frame)
+            else:
+                gamification.build_achievements(tab_frame)
+
+        self._tab_frames[name].pack(fill="both", expand=True)
+
+        # 活动选项卡高亮为实底主色，其余为 ghost
+        for tab_name, btn in self._tab_btns.items():
+            theme.style_button(
+                btn, "primary" if tab_name == name else "ghost",
+                font=theme.font(9),
+            )
+
+            def _switch(n: str = tab_name) -> None:
+                self._show_tab(n)
+
+            btn.config(command=_switch)
+
+        # 随内容切换窗口尺寸
+        self.root.geometry(self._TAB_GEOMETRY[name])
+
+    # ---------- 语言切换（方法区） ----------
 
     def _lang_display(self) -> str:
         """当前语言的显示文案"""
@@ -419,10 +490,12 @@ class StandUpApp:
         if not self.timer_running:
             self._set_status(tr("ready"), theme.MUTED)
         self._rebuild_mode_menu()  # 触发 _on_mode_change 刷新设置行文案
+        for tab_name, key in self._TAB_LABEL_KEYS.items():
+            btn = self._tab_btns.get(tab_name)
+            if btn is not None and btn.winfo_exists():
+                btn.config(text=tr(key))
         self.start_btn.config(text=tr("start_btn"))
         self.stop_btn.config(text=tr("stop_btn"))
-        self.stats_btn.config(text=tr("dashboard_btn"))
-        self.achievements_btn.config(text=tr("achievements_btn"))
 
     # ---------- 时间更新 ----------
 
@@ -689,6 +762,10 @@ class StandUpApp:
 
         self.rest_window.protocol("WM_DELETE_WINDOW", self.rest_ignore)
 
+        # 浮动提示区（悬浮于卡片上方）：休息未到时点击确认的堆叠提示
+        self._rest_warn_frame = tk.Frame(win, bg=theme.PRIMARY_DK)
+        self._rest_warn_frame.place(relx=0.5, rely=0.16, anchor="center")
+
         # 保存休息时长供倒计时使用
         self._break_seconds = break_minutes * 60
         self.update_rest_countdown()
@@ -729,7 +806,8 @@ class StandUpApp:
 
         elapsed = (datetime.now() - self.rest_start_time).total_seconds()
         if elapsed < 180:
-            messagebox.showwarning(tr("warn_rest_title"), tr("warn_rest_msg"))
+            # 不再弹窗：直接在休息界面浮动提示，1 秒后淡出，可叠加
+            self._flash_rest_warning()
             return
 
         # 统计：一次完整休息
@@ -739,7 +817,42 @@ class StandUpApp:
 
         self.rest_window.destroy()
         self.rest_window = None
+        self._rest_warn_frame = None
         self._on_rest_complete()
+
+    def _flash_rest_warning(self) -> None:
+        """在全屏休息界面浮动显示“休息时间未到”，约 1 秒后淡出消失。
+
+        多次点击确认会叠加多条提示，各自独立淡出。
+        """
+        if self.rest_window is None or not self.rest_window.winfo_exists():
+            return
+        if self._rest_warn_frame is None or not self._rest_warn_frame.winfo_exists():
+            return
+        win = self.rest_window
+
+        lbl = tk.Label(
+            self._rest_warn_frame,
+            text="⚠ " + tr("rest_too_soon"),
+            font=theme.font(10, "bold"),
+            fg="#F5C069", bg=theme.PRIMARY_DK,
+        )
+        lbl.pack(pady=2)
+
+        # 先停留 1 秒，再向遮罩底色（深松绿）插值淡出
+        fade_steps = 4
+        fade_colors = ["#D9A45C", "#A98A51", "#6F6E4B", theme.PRIMARY_DK]
+
+        def _fade(i: int) -> None:
+            if not win.winfo_exists() or not lbl.winfo_exists():
+                return
+            if i >= fade_steps:
+                lbl.destroy()
+                return
+            lbl.config(fg=fade_colors[i])
+            win.after(200, lambda: _fade(i + 1))
+
+        win.after(1000, lambda: _fade(0))
 
     def rest_ignore(self) -> None:
         """忽略休息限制，立即重新开始"""
@@ -748,6 +861,7 @@ class StandUpApp:
         if self.rest_window and self.rest_window.winfo_exists():
             self.rest_window.destroy()
         self.rest_window = None
+        self._rest_warn_frame = None
         self._on_rest_complete()
 
     def _on_rest_complete(self) -> None:

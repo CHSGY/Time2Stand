@@ -33,6 +33,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "stop_btn": "停止计时",
         "dashboard_btn": "📊 统计看板",
         "achievements_btn": "🏆 我的成就",
+        "tab_home": "🏠 主界面",
         "language": "语言：",
         # 系统托盘
         "tray_show": "显示窗口",
@@ -61,6 +62,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "warn_invalid_msg": "请输入有效的分钟数（正数）",
         "warn_rest_title": "休息不足",
         "warn_rest_msg": "至少休息3分钟才可以继续工作哦~",
+        "rest_too_soon": "休息时间未到，再坚持一下~",
         "error_dialog_title": "错误",
         "error_dialog_msg": "无法创建休息提醒窗口，请稍后重试",
         # 统计看板
@@ -126,6 +128,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "stop_btn": "Stop",
         "dashboard_btn": "📊 Dashboard",
         "achievements_btn": "🏆 Achievements",
+        "tab_home": "🏠 Home",
         "language": "Language:",
         "tray_show": "Show Window",
         "tray_hide": "Hide to Tray",
@@ -150,6 +153,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "warn_invalid_msg": "Please enter a valid number of minutes (positive)",
         "warn_rest_title": "Rest Too Short",
         "warn_rest_msg": "Please rest at least 3 minutes before continuing~",
+        "rest_too_soon": "Rest time isn't over yet — hang in there~",
         "error_dialog_title": "Error",
         "error_dialog_msg": "Failed to create the rest dialog. Please try again later.",
         "dashboard_title": "Dashboard",

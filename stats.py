@@ -168,26 +168,13 @@ def _interruption_rate(day: dict[str, int]) -> str:
     return f"{rate:.0%}"
 
 
-def show_dashboard(root: tk.Tk) -> None:
-    """弹出统计看板窗口（Toplevel），每次打开时重新计算数据"""
+def build_dashboard(parent: tk.Misc) -> None:
+    """在给定容器内渲染统计看板内容（嵌入主界面选项卡，每次调用重建）"""
     summary = get_summary()
 
-    try:
-        win = tk.Toplevel(root)
-    except tk.TclError as e:
-        logger.error("创建统计看板失败：%s", e)
-        return
-
-    win.title(tr("dashboard_title"))
-    win.geometry("380x460")
-    win.resizable(False, False)
-    win.attributes("-topmost", True)
-    theme.setup_window(win)
-
-    # 可滚动容器：内容超出窗口时可用滚轮查看
-    # 外层统一留出 18px 边距，内容与关闭按钮左右对齐
-    outer, canvas, content = theme.scrollable(win, height=396)
-    outer.pack(fill="both", expand=True, padx=18, pady=(6, 0))
+    # 可滚动容器：内容超出可视区时可用滚轮查看
+    outer, canvas, content = theme.scrollable(parent, height=396)
+    outer.pack(fill="both", expand=True)
 
     theme.label(
         content, tr("dashboard_heading"),
@@ -197,7 +184,7 @@ def show_dashboard(root: tk.Tk) -> None:
     def section(title: str, day: dict[str, Any]) -> None:
         """渲染一个汇总区块（白色卡片 + 左名右值行）"""
         frame = theme.card(content)
-        frame.pack(fill="x", pady=6)
+        frame.pack(fill="x", padx=12, pady=6)
         theme.label(
             frame, title,
             font=theme.font(9, "bold"), fg=theme.PRIMARY,
@@ -223,7 +210,7 @@ def show_dashboard(root: tk.Tk) -> None:
 
     # 最近 7 天简表
     recent_frame = theme.card(content)
-    recent_frame.pack(fill="x", pady=6)
+    recent_frame.pack(fill="x", padx=12, pady=6)
     theme.label(
         recent_frame, tr("recent7"),
         font=theme.font(9, "bold"), fg=theme.PRIMARY,
@@ -239,12 +226,8 @@ def show_dashboard(root: tk.Tk) -> None:
             font=theme.font(8),
         ).pack(side="right")
     # 底部留白，防止卡片贴边
-    tk.Frame(content, bg=theme.BG, height=6).pack()
+    tk.Frame(content, bg=theme.BG, height=8).pack()
 
     # 内容构建完成后绑定滚轮（滚动容器 + 递归子控件）
     theme.enable_wheel(canvas, content)
     canvas.update_idletasks()
-
-    close_btn = tk.Button(win, text=tr("close_btn"), width=11, command=win.destroy)
-    theme.style_button(close_btn, "subtle")
-    close_btn.pack(pady=(6, 12))
