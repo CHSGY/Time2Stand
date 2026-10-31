@@ -184,14 +184,18 @@ def show_dashboard(root: tk.Tk) -> None:
     win.attributes("-topmost", True)
     theme.setup_window(win)
 
+    # 可滚动容器：内容超出窗口时可用滚轮查看
+    outer, canvas, content = theme.scrollable(win, height=380)
+    outer.pack(fill="both", expand=True, padx=4, pady=(4, 0))
+
     theme.label(
-        win, tr("dashboard_heading"),
+        content, tr("dashboard_heading"),
         font=theme.font(13, "bold"),
     ).pack(pady=(14, 6))
 
     def section(title: str, day: dict[str, Any]) -> None:
         """渲染一个汇总区块（白色卡片 + 左名右值行）"""
-        frame = theme.card(win)
+        frame = theme.card(content)
         frame.pack(fill="x", padx=16, pady=5)
         theme.label(
             frame, title,
@@ -217,7 +221,7 @@ def show_dashboard(root: tk.Tk) -> None:
     section(tr("section_month"), summary["month"])
 
     # 最近 7 天简表
-    recent_frame = theme.card(win)
+    recent_frame = theme.card(content)
     recent_frame.pack(fill="x", padx=16, pady=5)
     theme.label(
         recent_frame, tr("recent7"),
@@ -234,8 +238,12 @@ def show_dashboard(root: tk.Tk) -> None:
             font=theme.font(8),
         ).pack(side="right")
     # 底部留白，防止卡片贴边
-    tk.Frame(win, bg=theme.BG, height=4).pack()
+    tk.Frame(content, bg=theme.BG, height=4).pack()
+
+    # 内容构建完成后绑定滚轮（滚动容器 + 递归子控件）
+    theme.enable_wheel(canvas, content)
+    canvas.update_idletasks()
 
     close_btn = tk.Button(win, text=tr("close_btn"), width=11, command=win.destroy)
     theme.style_button(close_btn, "subtle")
-    close_btn.pack(pady=(8, 12))
+    close_btn.pack(pady=(6, 10))

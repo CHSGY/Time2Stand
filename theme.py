@@ -111,3 +111,52 @@ def label(parent: tk.Misc, text: str = "", **kwargs: Any) -> tk.Label:
 def setup_window(win: tk.Misc, bg: str = BG) -> None:
     """窗口统一底色"""
     win.configure({"bg": bg})
+
+
+def scrollable(parent: tk.Misc, height: int) -> tuple[tk.Frame, tk.Canvas, tk.Frame]:
+    """创建垂直滚动容器，返回 (outer, canvas, inner)。
+
+    内容放进 inner；内容尺寸变化时自动扩展 scrollregion。
+    滚轮事件在内容构建完成后调用 enable_wheel() 绑定。
+    """
+    outer = tk.Frame(parent, bg=BG)
+    canvas = tk.Canvas(
+        outer, bg=BG, bd=0, highlightthickness=0, height=height,
+    )
+    vsb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+
+    inner = tk.Frame(canvas, bg=BG)
+    win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+    def _on_inner_configure(event: "tk.Event[tk.Misc]") -> None:
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        # 内容宽度跟随画布，避免横向溢出
+        canvas.itemconfigure(win_id, width=event.width)
+
+    inner.bind("<Configure>", _on_inner_configure)
+    return outer, canvas, inner
+
+
+def enable_wheel(canvas: tk.Canvas, root_widget: tk.Misc) -> None:
+    """给容器内所有控件递归绑定鼠标滚轮（Windows MouseWheel）。
+
+    在窗口内容构建完成后调用一次。
+    """
+    def _on_wheel(event: "tk.Event[tk.Misc]") -> None:
+        # Windows delta 为 ±120 的倍数，向上滚为正
+        canvas.yview_scroll(-1 * int(event.delta / 120), "units")
+
+    def _bind(widget: tk.Misc) -> None:
+        widget.bind("<MouseWheel>", _on_wheel)
+        try:
+            children = widget.winfo_children()
+        except tk.TclError:
+            return
+        for child in children:
+            _bind(child)
+
+    canvas.bind("<MouseWheel>", _on_wheel)
+    _bind(root_widget)

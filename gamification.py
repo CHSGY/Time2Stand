@@ -154,13 +154,17 @@ def show_achievements(root: tk.Tk) -> None:
     win.attributes("-topmost", True)
     theme.setup_window(win)
 
+    # 可滚动容器：内容超出窗口时可用滚轮查看
+    outer, canvas, content = theme.scrollable(win, height=440)
+    outer.pack(fill="both", expand=True, padx=4, pady=(4, 0))
+
     theme.label(
-        win, tr("ach_heading"),
+        content, tr("ach_heading"),
         font=theme.font(13, "bold"),
     ).pack(pady=(14, 4))
 
     # 打卡概览（白色卡片：连击大字 + 汇总行）
-    overview = theme.card(win)
+    overview = theme.card(content)
     overview.pack(fill="x", padx=16, pady=5)
     theme.label(
         overview,
@@ -179,7 +183,7 @@ def show_achievements(root: tk.Tk) -> None:
     ).pack(pady=(0, 10))
 
     # 打卡日历（最近 14 天，今天的排在最右）
-    cal_frame = theme.card(win)
+    cal_frame = theme.card(content)
     cal_frame.pack(fill="x", padx=16, pady=5)
     theme.label(
         cal_frame, tr("cal_frame"),
@@ -201,8 +205,8 @@ def show_achievements(root: tk.Tk) -> None:
     ).pack(pady=(0, 6))
 
     # 徽章墙
-    wall = theme.card(win)
-    wall.pack(fill="both", expand=True, padx=16, pady=5)
+    wall = theme.card(content)
+    wall.pack(fill="x", padx=16, pady=5)
     theme.label(
         wall, tr("badge_wall"),
         font=theme.font(9, "bold"), fg=theme.PRIMARY,
@@ -230,9 +234,13 @@ def show_achievements(root: tk.Tk) -> None:
                 font=theme.font(8, "bold"), fg=theme.PRIMARY,
             ).pack(side="right")
 
+    # 内容构建完成后绑定滚轮（滚动容器 + 递归子控件）
+    theme.enable_wheel(canvas, content)
+    canvas.update_idletasks()
+
     close_btn = tk.Button(win, text=tr("close_btn"), width=11, command=win.destroy)
     theme.style_button(close_btn, "subtle")
-    close_btn.pack(pady=(8, 12))
+    close_btn.pack(pady=(6, 10))
 
 
 # ---------- 新徽章通知 ----------
