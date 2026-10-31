@@ -19,6 +19,7 @@ import i18n
 import stats
 import gamification
 from i18n import tr
+import theme
 
 # 语言下拉框显示文案 ↔ 语言代码
 _LANG_DISPLAY: dict[str, str] = {"zh": "中文", "en": "English"}
@@ -151,33 +152,44 @@ class StandUpApp:
         i18n.set_language(str(self._config.get("language", "zh")))
 
         root.title(tr("app_title"))
-        root.geometry("300x310")
+        root.geometry("320x360")
         root.resizable(False, False)
+        theme.setup_window(root)
 
-        # ---------- 顶部：时间显示 ----------
-        self.time_label = tk.Label(root, text=tr("current_time", time=""), font=('Arial', 14))
-        self.time_label.pack(pady=(10, 5))
+        # ---------- 顶部：弱化的时钟 ----------
+        self.time_label = tk.Label(
+            root, text=tr("current_time", time=""),
+            font=theme.font(9), fg=theme.MUTED,
+        )
+        self.time_label.pack(pady=(14, 2))
 
-        self.status_label = tk.Label(root, text=tr("ready"), font=('Arial', 12))
-        self.status_label.pack(pady=(0, 5))
+        # ---------- hero：状态/倒计时大字 ----------
+        self.status_label = tk.Label(
+            root, text=tr("ready"),
+            font=theme.font(17, "bold"), fg=theme.MUTED,
+        )
+        self.status_label.pack(pady=(2, 10))
 
         # ---------- 模式选择 ----------
-        mode_frame = tk.Frame(root)
-        mode_frame.pack(pady=2, fill='x', padx=50)
-        tk.Label(mode_frame, text=tr("mode"), font=('Arial', 10)).pack(side='left')
+        mode_frame = tk.Frame(root, bg=theme.BG)
+        mode_frame.pack(pady=3, fill='x', padx=40)
+        theme.label(mode_frame, tr("mode"), font=theme.font(9), fg=theme.MUTED).pack(side='left')
         self._mode = "normal"  # 内部模式值：normal / pomodoro
         self._mode_var = tk.StringVar(value=tr("mode_normal"))
         self._mode_menu = tk.OptionMenu(mode_frame, self._mode_var, "")
-        self._mode_menu.config(font=('Arial', 9), width=10)
+        theme.style_optionmenu(self._mode_menu, width=12)
         self._mode_menu.pack(side='left', padx=(5, 0))
         self._rebuild_mode_menu()
         self._mode_var.trace_add("write", self._on_mode_change)
 
         # ---------- 倒计时设置 ----------
-        self.settings_frame = tk.Frame(root)
-        self.settings_frame.pack(pady=2, fill='x', padx=50)
+        self.settings_frame = tk.Frame(root, bg=theme.BG)
+        self.settings_frame.pack(pady=3, fill='x', padx=40)
 
-        self.settings_label = tk.Label(self.settings_frame, text=tr("countdown_label"), font=('Arial', 10))
+        self.settings_label = theme.label(
+            self.settings_frame, tr("countdown_label"),
+            font=theme.font(9), fg=theme.MUTED,
+        )
         self.settings_label.pack(side='left')
 
         default_minutes = str(self._config.get("countdown_minutes", 30))
@@ -185,52 +197,61 @@ class StandUpApp:
         self.minutes_var = tk.StringVar(value=default_minutes)
         self.minutes_entry = tk.Entry(
             self.settings_frame, textvariable=self.minutes_var,
-            width=6, font=('Arial', 10), justify='center'
+            width=7, font=theme.font(10), justify='center',
+            bg=theme.CARD, fg=theme.INK,
+            relief="flat", insertbackground=theme.INK,
+            highlightthickness=1, highlightbackground=theme.LINE,
+            highlightcolor=theme.SAGE,
+            disabledbackground=theme.LINE, disabledforeground=theme.MUTED,
         )
         self.minutes_entry.pack(side='left', padx=(5, 0))
 
         # ---------- 按钮框架 ----------
-        self.btn_frame = tk.Frame(root)
-        self.btn_frame.pack(pady=5, fill='x', padx=50)
+        self.btn_frame = tk.Frame(root, bg=theme.BG)
+        self.btn_frame.pack(pady=12, fill='x', padx=40)
 
         self.start_btn = tk.Button(
             self.btn_frame, text=tr("start_btn"),
-            width=10, command=self.start_timer
+            width=11, command=self.start_timer,
         )
+        theme.style_button(self.start_btn, "primary")
         self.start_btn.pack(side='left', padx=(0, 10))
 
         self.stop_btn = tk.Button(
             self.btn_frame, text=tr("stop_btn"),
-            width=10, command=self.stop_timer,
+            width=11, command=self.stop_timer,
             state=tk.DISABLED
         )
+        theme.style_button(self.stop_btn, "subtle")
         self.stop_btn.pack(side='left')
 
         # ---------- 统计看板按钮 ----------
         self.stats_btn = tk.Button(
             root, text=tr("dashboard_btn"),
-            width=21, command=lambda: stats.show_dashboard(root)
+            width=20, command=lambda: stats.show_dashboard(root)
         )
-        self.stats_btn.pack()
+        theme.style_button(self.stats_btn, "ghost")
+        self.stats_btn.pack(pady=(2, 0))
 
         # ---------- 成就系统按钮 ----------
         self.achievements_btn = tk.Button(
             root, text=tr("achievements_btn"),
-            width=21, command=lambda: gamification.show_achievements(root)
+            width=20, command=lambda: gamification.show_achievements(root)
         )
-        self.achievements_btn.pack(pady=(3, 5))
+        theme.style_button(self.achievements_btn, "ghost")
+        self.achievements_btn.pack(pady=(3, 6))
 
         # ---------- 语言切换 ----------
-        lang_frame = tk.Frame(root)
-        lang_frame.pack(pady=2, fill='x', padx=50)
-        tk.Label(lang_frame, text=tr("language"), font=('Arial', 10)).pack(side='left')
+        lang_frame = tk.Frame(root, bg=theme.BG)
+        lang_frame.pack(pady=2, fill='x', padx=40)
+        theme.label(lang_frame, tr("language"), font=theme.font(9), fg=theme.MUTED).pack(side='left')
         self._lang_var = tk.StringVar(value=self._lang_display())
         self._lang_menu = tk.OptionMenu(
             lang_frame, self._lang_var,
             *[_LANG_DISPLAY[lang] for lang in i18n.LANGUAGES],
             command=self._on_language_change,
         )
-        self._lang_menu.config(font=('Arial', 9), width=8)
+        theme.style_optionmenu(self._lang_menu, width=9)
         self._lang_menu.pack(side='left', padx=(5, 0))
 
         # ---------- 状态初始化 ----------
@@ -396,7 +417,7 @@ class StandUpApp:
         now_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.time_label.config(text=tr("current_time", time=now_text))
         if not self.timer_running:
-            self.status_label.config(text=tr("ready"))
+            self._set_status(tr("ready"), theme.MUTED)
         self._rebuild_mode_menu()  # 触发 _on_mode_change 刷新设置行文案
         self.start_btn.config(text=tr("start_btn"))
         self.stop_btn.config(text=tr("stop_btn"))
@@ -404,6 +425,10 @@ class StandUpApp:
         self.achievements_btn.config(text=tr("achievements_btn"))
 
     # ---------- 时间更新 ----------
+
+    def _set_status(self, text: str, color: str | None = None) -> None:
+        """更新 hero 状态大字，color 缺省为墨青"""
+        self.status_label.config(text=text, fg=color or theme.INK)
 
     def update_time(self) -> None:
         """实时更新时间显示（每秒更新）"""
@@ -432,8 +457,9 @@ class StandUpApp:
 
             mins = int(self.countdown_seconds // 60)
             secs = int(self.countdown_seconds % 60)
-            self.status_label.config(
-                text=tr("work_remaining", time=f"{mins:02d}:{secs:02d}")
+            self._set_status(
+                tr("work_remaining", time=f"{mins:02d}:{secs:02d}"),
+                theme.PRIMARY,
             )
             self.start_btn.config(state=tk.DISABLED)
             self.stop_btn.config(state=tk.NORMAL)
@@ -465,7 +491,7 @@ class StandUpApp:
             stats.record_interruption()
 
             self.minutes_entry.config(state=tk.NORMAL)
-            self.status_label.config(text=tr("stopped"))
+            self._set_status(tr("stopped"), theme.MUTED)
             self.start_btn.config(state=tk.NORMAL)
             self.stop_btn.config(state=tk.DISABLED)
 
@@ -479,7 +505,7 @@ class StandUpApp:
         # 空闲检测：如果用户离开超过5分钟，暂停计时
         idle_secs = get_idle_seconds()
         if idle_secs > 300:  # 5分钟无操作
-            self.status_label.config(text=tr("idle_paused"))
+            self._set_status(tr("idle_paused"), theme.AMBER)
             # 不减少剩余时间，继续检测
             self._idle_check_id = self.root.after(5000, self.timer_cycle)
             return
@@ -490,8 +516,9 @@ class StandUpApp:
         remaining = max(0, self.countdown_seconds - elapsed)
 
         mins, secs = divmod(int(remaining), 60)
-        self.status_label.config(
-            text=tr("work_remaining", time=f"{mins:02d}:{secs:02d}")
+        self._set_status(
+            tr("work_remaining", time=f"{mins:02d}:{secs:02d}"),
+            theme.PRIMARY,
         )
 
         if remaining <= 0:
@@ -510,7 +537,7 @@ class StandUpApp:
             if mode == "pomodoro":
                 self._on_pomodoro_complete()
             else:
-                self.status_label.config(text=tr("time_up"))
+                self._set_status(tr("time_up"), theme.AMBER)
                 logger.info("计时结束，弹出休息提醒")
                 winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
                 minutes_text = int(self.countdown_seconds // 60)
@@ -541,7 +568,7 @@ class StandUpApp:
             self._pomodoro_long_break = False
 
         status_text = tr("pomodoro_done", n=self._pomodoro_cycle, m=break_minutes)
-        self.status_label.config(text=status_text)
+        self._set_status(status_text, theme.PRIMARY)
         logger.info(
             "番茄钟 #%d 完成，休息 %d 分钟", self._pomodoro_cycle, break_minutes
         )
@@ -589,53 +616,76 @@ class StandUpApp:
         else:
             title_text = tr("rest_title")
 
-        self.rest_window.title(tr("rest_title"))
-        self.rest_window.geometry("400x300")
-        self.rest_window.resizable(False, False)
-        self.rest_window.attributes('-topmost', True)
+        # ---------- 全屏遮罩：深松绿满屏，居中卡片 ----------
+        win = self.rest_window
+        win.title(tr("rest_title"))
+        win.configure(bg=theme.PRIMARY_DK)
+        win.attributes('-topmost', True)
+        try:
+            win.attributes('-fullscreen', True)
+        except tk.TclError:
+            win.geometry("800x600")
+
+        def _close(event: Any = None) -> None:
+            """Esc / 关闭 = 忽略休息"""
+            self.rest_ignore()
+
+        win.bind("<Escape>", _close)
+
+        card = theme.card(win)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+
+        # 卡片标题
+        theme.label(
+            card, title_text,
+            font=theme.font(12, "bold"), fg=theme.INK,
+            wraplength=440, justify="center",
+        ).pack(padx=50, pady=(28, 2))
 
         # 主消息
         if is_pomodoro_break:
-            msg = f"{title_text}\n{tr('rest_msg_pomodoro', m=break_minutes)}"
+            msg = tr("rest_msg_pomodoro", m=break_minutes)
         else:
             msg = tr("rest_msg_normal", m=worked_minutes)
+        theme.label(
+            card, msg,
+            font=theme.font(10), fg=theme.MUTED,
+            wraplength=440, justify="center",
+        ).pack(padx=50, pady=(4, 14))
 
-        tk.Label(
-            self.rest_window, text=msg,
-            font=('Arial', 11), wraplength=360,
-        ).pack(pady=(15, 5))
-
-        # 休息倒计时
-        self.rest_countdown_label = tk.Label(
-            self.rest_window,
+        # 休息倒计时（卡片内的视觉重心）
+        self.rest_countdown_label = theme.label(
+            card,
             text=tr("rest_countdown", time=f"{break_minutes:02d}:00"),
-            font=('Arial', 14, 'bold'),
-            fg='blue',
+            font=theme.font(30, "bold"), fg=theme.PRIMARY,
         )
-        self.rest_countdown_label.pack(pady=(5, 5))
+        self.rest_countdown_label.pack(pady=(6, 10))
 
         # 健康小贴士
         tip = random.choice(HEALTH_TIPS)
-        tk.Label(
-            self.rest_window, text=tip,
-            font=('Arial', 9), fg='#555555', wraplength=360,
-            justify='center',
-        ).pack(pady=(5, 5))
+        theme.label(
+            card, tip,
+            font=theme.font(9), fg=theme.MUTED,
+            wraplength=420, justify="center",
+        ).pack(padx=50, pady=(2, 16))
 
         # 按钮框架
-        rest_btn_frame = tk.Frame(self.rest_window)
-        rest_btn_frame.pack(pady=(10, 5))
+        rest_btn_frame = tk.Frame(card, bg=theme.CARD)
+        rest_btn_frame.pack(pady=(0, 26))
 
         self.rest_confirm_btn = tk.Button(
             rest_btn_frame, text=tr("rest_confirm_btn"),
             width=14, command=self.rest_confirm,
         )
+        theme.style_button(self.rest_confirm_btn, "primary")
         self.rest_confirm_btn.pack(side='left', padx=5)
 
-        tk.Button(
+        ignore_btn = tk.Button(
             rest_btn_frame, text=tr("rest_ignore_btn"),
             width=8, command=self.rest_ignore,
-        ).pack(side='left', padx=5)
+        )
+        theme.style_button(ignore_btn, "subtle")
+        ignore_btn.pack(side='left', padx=5)
 
         self.rest_window.protocol("WM_DELETE_WINDOW", self.rest_ignore)
 
@@ -659,13 +709,14 @@ class StandUpApp:
             return
         if remaining <= 0:
             self.rest_countdown_label.config(
-                text=tr("rest_done"), fg='green'
+                text=tr("rest_done"), fg=theme.PRIMARY
             )
             winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
             return
 
         self.rest_countdown_label.config(
-            text=tr("rest_countdown", time=f"{mins:02d}:{secs:02d}")
+            text=tr("rest_countdown", time=f"{mins:02d}:{secs:02d}"),
+            fg=theme.PRIMARY,
         )
         self.rest_window.after(1000, self.update_rest_countdown)
 
@@ -705,8 +756,9 @@ class StandUpApp:
         if mode == "pomodoro" and self._is_pomodoro_break:
             # 番茄模式休息结束后自动进入下一轮工作
             self._is_pomodoro_break = False
-            self.status_label.config(
-                text=tr("pomodoro_start", n=self._pomodoro_cycle + 1)
+            self._set_status(
+                tr("pomodoro_start", n=self._pomodoro_cycle + 1),
+                theme.PRIMARY,
             )
             # 恢复默认工作时长
             self.minutes_var.set("25")

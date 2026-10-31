@@ -18,6 +18,7 @@ from typing import Any
 import stats
 from config import _get_config_dir
 from i18n import tr
+import theme
 
 logger = logging.getLogger("SightHabitKeeper")
 
@@ -148,16 +149,25 @@ def show_achievements(root: tk.Tk) -> None:
         return
 
     win.title(tr("ach_title"))
-    win.geometry("380x480")
+    win.geometry("380x500")
     win.resizable(False, False)
     win.attributes("-topmost", True)
+    theme.setup_window(win)
 
-    tk.Label(win, text=tr("ach_heading"), font=("Arial", 14, "bold")).pack(pady=(12, 4))
+    theme.label(
+        win, tr("ach_heading"),
+        font=theme.font(13, "bold"),
+    ).pack(pady=(14, 4))
 
-    # 打卡概览
-    overview = tk.Frame(win)
-    overview.pack(pady=2)
-    tk.Label(
+    # 打卡概览（白色卡片：连击大字 + 汇总行）
+    overview = theme.card(win)
+    overview.pack(fill="x", padx=16, pady=5)
+    theme.label(
+        overview,
+        text=tr("streak_hero", n=streak),
+        font=theme.font(22, "bold"), fg=theme.PRIMARY,
+    ).pack(pady=(10, 0))
+    theme.label(
         overview,
         text=tr(
             "ach_overview",
@@ -165,48 +175,64 @@ def show_achievements(root: tk.Tk) -> None:
             rest=totals["rest"],
             work=_fmt_hours(totals["work"]),
         ),
-        font=("Arial", 10),
-    ).pack()
+        font=theme.font(9), fg=theme.MUTED,
+    ).pack(pady=(0, 10))
 
     # 打卡日历（最近 14 天，今天的排在最右）
-    cal_frame = tk.LabelFrame(win, text=tr("cal_frame"), font=("Arial", 10))
-    cal_frame.pack(fill="x", padx=15, pady=6)
-    cal_row = tk.Frame(cal_frame)
+    cal_frame = theme.card(win)
+    cal_frame.pack(fill="x", padx=16, pady=5)
+    theme.label(
+        cal_frame, tr("cal_frame"),
+        font=theme.font(9, "bold"), fg=theme.PRIMARY,
+    ).pack(anchor="w", padx=12, pady=(8, 0))
+    cal_row = tk.Frame(cal_frame, bg=theme.CARD)
     cal_row.pack(pady=4)
     today = date.today()
     for i in range(13, -1, -1):
         d = today - timedelta(days=i)
         mark = "✅" if d.isoformat() in checked else "·"
-        tk.Label(
-            cal_row, text=mark, font=("Arial", 11),
-            fg="green" if d.isoformat() in checked else "#bbbbbb",
+        theme.label(
+            cal_row, text=mark, font=theme.font(11),
+            fg=theme.PRIMARY if d.isoformat() in checked else "#cccccc",
         ).pack(side="left", expand=True)
-    tk.Label(cal_frame, text=tr("cal_legend"), font=("Arial", 8), fg="#888888").pack(pady=(0, 4))
+    theme.label(
+        cal_frame, tr("cal_legend"),
+        font=theme.font(8), fg=theme.MUTED,
+    ).pack(pady=(0, 6))
 
     # 徽章墙
-    wall = tk.LabelFrame(win, text=tr("badge_wall"), font=("Arial", 10))
-    wall.pack(fill="both", expand=True, padx=15, pady=6)
+    wall = theme.card(win)
+    wall.pack(fill="both", expand=True, padx=16, pady=5)
+    theme.label(
+        wall, tr("badge_wall"),
+        font=theme.font(9, "bold"), fg=theme.PRIMARY,
+    ).pack(anchor="w", padx=12, pady=(8, 2))
     for b in BADGES:
-        row = tk.Frame(wall)
-        row.pack(fill="x", padx=10, pady=2)
+        row = tk.Frame(wall, bg=theme.CARD)
+        row.pack(fill="x", padx=12, pady=2)
         is_unlocked = b["id"] in unlocked
         icon = b["icon"] if is_unlocked else "🔒"
-        name_color = "#222222" if is_unlocked else "#aaaaaa"
-        tk.Label(row, text=icon, font=("Arial", 13)).pack(side="left", padx=(0, 6))
-        tk.Label(
-            row, text=badge_name(b), font=("Arial", 10, "bold"),
+        name_color = theme.INK if is_unlocked else "#b5bfc0"
+        theme.label(row, icon, font=theme.font(13)).pack(side="left", padx=(0, 6))
+        theme.label(
+            row, badge_name(b), font=theme.font(10, "bold"),
             fg=name_color, width=10, anchor="w",
         ).pack(side="left")
-        tk.Label(
+        theme.label(
             row,
-            text=badge_desc(b) if is_unlocked else tr("badge_locked", desc=badge_desc(b)),
-            font=("Arial", 8),
-            fg="#888888" if is_unlocked else "#cccccc",
+            badge_desc(b) if is_unlocked else tr("badge_locked", desc=badge_desc(b)),
+            font=theme.font(8),
+            fg=theme.MUTED if is_unlocked else "#c9d2d3",
         ).pack(side="left", padx=(0, 4))
         if is_unlocked:
-            tk.Label(row, text=tr("badge_unlocked"), font=("Arial", 8, "bold"), fg="green").pack(side="right")
+            theme.label(
+                row, tr("badge_unlocked"),
+                font=theme.font(8, "bold"), fg=theme.PRIMARY,
+            ).pack(side="right")
 
-    tk.Button(win, text=tr("close_btn"), width=10, command=win.destroy).pack(pady=(6, 10))
+    close_btn = tk.Button(win, text=tr("close_btn"), width=11, command=win.destroy)
+    theme.style_button(close_btn, "subtle")
+    close_btn.pack(pady=(8, 12))
 
 
 # ---------- 新徽章通知 ----------
@@ -233,11 +259,15 @@ def check_and_notify(root: tk.Tk) -> None:
         except tk.TclError:
             return
         toast.title(tr("toast_title"))
-        toast.geometry("320x120")
+        toast.geometry("340x120")
         toast.resizable(False, False)
         toast.attributes("-topmost", True)
-        tk.Label(toast, text=tr("toast_heading"), font=("Arial", 12, "bold")).pack(pady=(18, 4))
-        tk.Label(toast, text=text, font=("Arial", 11)).pack()
+        theme.setup_window(toast)
+        theme.label(
+            toast, tr("toast_heading"),
+            font=theme.font(11, "bold"), fg=theme.PRIMARY,
+        ).pack(pady=(18, 4))
+        theme.label(toast, text, font=theme.font(11)).pack()
         toast.after(4000, toast.destroy)
     except Exception as e:  # 游戏化属于附加功能，任何异常不影响主流程
         logger.warning("成就通知检查失败：%s", e)

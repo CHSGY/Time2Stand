@@ -15,6 +15,7 @@ from typing import Any
 
 from config import _get_config_dir
 from i18n import tr
+import theme
 
 logger = logging.getLogger("SightHabitKeeper")
 
@@ -178,16 +179,24 @@ def show_dashboard(root: tk.Tk) -> None:
         return
 
     win.title(tr("dashboard_title"))
-    win.geometry("360x420")
+    win.geometry("360x440")
     win.resizable(False, False)
     win.attributes("-topmost", True)
+    theme.setup_window(win)
 
-    tk.Label(win, text=tr("dashboard_heading"), font=("Arial", 14, "bold")).pack(pady=(12, 6))
+    theme.label(
+        win, tr("dashboard_heading"),
+        font=theme.font(13, "bold"),
+    ).pack(pady=(14, 6))
 
     def section(title: str, day: dict[str, Any]) -> None:
-        """渲染一个汇总区块"""
-        frame = tk.LabelFrame(win, text=title, font=("Arial", 10))
-        frame.pack(fill="x", padx=15, pady=6)
+        """渲染一个汇总区块（白色卡片 + 左名右值行）"""
+        frame = theme.card(win)
+        frame.pack(fill="x", padx=16, pady=5)
+        theme.label(
+            frame, title,
+            font=theme.font(9, "bold"), fg=theme.PRIMARY,
+        ).pack(anchor="w", padx=12, pady=(8, 2))
         rows = [
             (tr("row_work"), _fmt_duration(day.get("work_seconds", 0))),
             (tr("row_pomodoro"), _fmt_duration(day.get("pomodoro_work_seconds", 0))),
@@ -195,10 +204,12 @@ def show_dashboard(root: tk.Tk) -> None:
             (tr("row_rate"), _interruption_rate(day)),
         ]
         for name, value in rows:
-            row = tk.Frame(frame)
-            row.pack(fill="x", padx=10, pady=1)
-            tk.Label(row, text=name, font=("Arial", 9), anchor="w").pack(side="left")
-            tk.Label(row, text=value, font=("Arial", 9, "bold"), anchor="e").pack(side="right")
+            row = tk.Frame(frame, bg=theme.CARD)
+            row.pack(fill="x", padx=12, pady=1)
+            theme.label(row, name, font=theme.font(9), fg=theme.MUTED).pack(side="left")
+            theme.label(
+                row, value, font=theme.font(9, "bold"),
+            ).pack(side="right")
 
     today = summary["today"]
     section(tr("section_today", date=today["date"]), today)
@@ -206,15 +217,25 @@ def show_dashboard(root: tk.Tk) -> None:
     section(tr("section_month"), summary["month"])
 
     # 最近 7 天简表
-    recent_frame = tk.LabelFrame(win, text=tr("recent7"), font=("Arial", 10))
-    recent_frame.pack(fill="x", padx=15, pady=6)
+    recent_frame = theme.card(win)
+    recent_frame.pack(fill="x", padx=16, pady=5)
+    theme.label(
+        recent_frame, tr("recent7"),
+        font=theme.font(9, "bold"), fg=theme.PRIMARY,
+    ).pack(anchor="w", padx=12, pady=(8, 2))
     for day_str, day in summary["recent_days"]:
-        row = tk.Frame(recent_frame)
-        row.pack(fill="x", padx=10, pady=1)
-        tk.Label(row, text=day_str[5:], font=("Arial", 8), width=8, anchor="w").pack(side="left")
-        tk.Label(
-            row, text=_fmt_duration(day.get("work_seconds", 0)),
-            font=("Arial", 8), anchor="e",
+        row = tk.Frame(recent_frame, bg=theme.CARD)
+        row.pack(fill="x", padx=12, pady=1)
+        theme.label(
+            row, day_str[5:], font=theme.font(8), fg=theme.MUTED, width=8,
+        ).pack(side="left")
+        theme.label(
+            row, _fmt_duration(day.get("work_seconds", 0)),
+            font=theme.font(8),
         ).pack(side="right")
+    # 底部留白，防止卡片贴边
+    tk.Frame(win, bg=theme.BG, height=4).pack()
 
-    tk.Button(win, text=tr("close_btn"), width=10, command=win.destroy).pack(pady=(8, 10))
+    close_btn = tk.Button(win, text=tr("close_btn"), width=11, command=win.destroy)
+    theme.style_button(close_btn, "subtle")
+    close_btn.pack(pady=(8, 12))

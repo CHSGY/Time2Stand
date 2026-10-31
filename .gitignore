@@ -9,6 +9,9 @@ build/
 *.spec
 !/Sight_Habit_Keeper.spec
 
+# Release exe 存储（本地保存，不入库二进制）
+release/
+
 # IDE / OS junk
 .vscode/
 .idea/
