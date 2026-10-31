@@ -135,6 +135,7 @@ class StandUpApp:
     _tab_btns: dict[str, tk.Button]
     _tab_frames: dict[str, tk.Frame]
     _active_tab: str
+    _tab_built_mtime: dict[str, float | None]
     # 番茄工作法
     _mode: str
     _mode_menu: tk.OptionMenu
@@ -164,6 +165,7 @@ class StandUpApp:
         self._tab_btns = {}
         self._tab_frames = {}
         self._active_tab = "home"
+        self._tab_built_mtime = {}  # 看板/成就构建时的统计文件 mtime（缓存失效判断）
         for name, label_key in (
             ("home", "tab_home"),
             ("dashboard", "dashboard_btn"),
@@ -183,8 +185,11 @@ class StandUpApp:
         self._content = tk.Frame(root, bg=theme.BG)
         self._content.pack(fill="both", expand=True)
 
-        # 首页选项卡（其余选项卡在首次切换时按需重建，保证数据最新）
+        # 首页选项卡（其余选项卡在首次切换时按需构建，保证数据最新）
+        # 所有选项卡用 place 叠放在同一容器内，切换时 lift 到顶层，
+        # 避免反复 pack/unpack 引发整树重新布局（切换卡顿的根源）
         home = tk.Frame(self._content, bg=theme.BG)
+        home.place(x=0, y=0, relwidth=1, relheight=1)
         self._tab_frames["home"] = home
 
         # ---------- 顶部：弱化的时钟 ----------
@@ -426,29 +431,29 @@ class StandUpApp:
     }
 
     def _show_tab(self, name: str) -> None:
-        """切换顶部选项卡；看板/成就每次切入时重建以展示最新数据"""
+        """切换顶部选项卡；看板/成就内容缓存复用，统计文件变化时才重建"""
         if name not in self._TAB_GEOMETRY:
             return
         self._active_tab = name
 
-        # 隐藏其它选项卡
-        for tab_name, frame in self._tab_frames.items():
-            if tab_name != name:
-                frame.pack_forget()
-
-        # 看板/成就：重建内容保证数据与语言最新
+        # 看板/成就：内容缓存，仅当统计文件 mtime 变化（或尚未构建）时重建
         if name in ("dashboard", "achievements"):
-            old = self._tab_frames.get(name)
-            if old is not None:
-                old.destroy()
-            tab_frame = tk.Frame(self._content, bg=theme.BG)
-            self._tab_frames[name] = tab_frame
-            if name == "dashboard":
-                stats.build_dashboard(tab_frame)
-            else:
-                gamification.build_achievements(tab_frame)
+            mtime = stats.get_stats_mtime()
+            frame = self._tab_frames.get(name)
+            if frame is None or self._tab_built_mtime.get(name) != mtime:
+                if frame is not None:
+                    frame.destroy()
+                tab_frame = tk.Frame(self._content, bg=theme.BG)
+                tab_frame.place(x=0, y=0, relwidth=1, relheight=1)
+                self._tab_frames[name] = tab_frame
+                if name == "dashboard":
+                    stats.build_dashboard(tab_frame)
+                else:
+                    gamification.build_achievements(tab_frame)
+                self._tab_built_mtime[name] = mtime
 
-        self._tab_frames[name].pack(fill="both", expand=True)
+        # 叠放次序切换：把目标选项卡抬到顶层（无需重新布局）
+        self._tab_frames[name].lift()
 
         # 活动选项卡高亮为实底主色，其余为 ghost
         for tab_name, btn in self._tab_btns.items():
@@ -494,6 +499,15 @@ class StandUpApp:
             btn = self._tab_btns.get(tab_name)
             if btn is not None and btn.winfo_exists():
                 btn.config(text=tr(key))
+        # 语言已变：丢弃看板/成就的内容缓存，下次切入时按新语言重建
+        for tab_name in ("dashboard", "achievements"):
+            frame = self._tab_frames.pop(tab_name, None)
+            self._tab_built_mtime.pop(tab_name, None)
+            if frame is not None:
+                frame.destroy()
+        # 当前正停留在被丢弃的选项卡上则立即重建
+        if self._active_tab in ("dashboard", "achievements"):
+            self._show_tab(self._active_tab)
         self.start_btn.config(text=tr("start_btn"))
         self.stop_btn.config(text=tr("stop_btn"))
 
@@ -612,7 +626,10 @@ class StandUpApp:
             else:
                 self._set_status(tr("time_up"), theme.AMBER)
                 logger.info("计时结束，弹出休息提醒")
-                winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
+                # 异步播放：不阻塞界面，立即弹出全屏休息界面
+                winsound.PlaySound(
+                    "SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC
+                )
                 minutes_text = int(self.countdown_seconds // 60)
                 self.show_rest_dialog(minutes_text)
             return
@@ -646,7 +663,10 @@ class StandUpApp:
             "番茄钟 #%d 完成，休息 %d 分钟", self._pomodoro_cycle, break_minutes
         )
 
-        winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
+        # 异步播放：不阻塞界面，立即弹出休息界面
+        winsound.PlaySound(
+            "SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC
+        )
 
         # 显示休息对话框（带番茄工作法信息）
         self.show_rest_dialog(
@@ -690,14 +710,10 @@ class StandUpApp:
             title_text = tr("rest_title")
 
         # ---------- 全屏遮罩：深松绿满屏，居中卡片 ----------
+        # 先离屏构建全部内容，最后才设满屏显示，避免"空白全屏"闪烁
         win = self.rest_window
         win.title(tr("rest_title"))
         win.configure(bg=theme.PRIMARY_DK)
-        win.attributes('-topmost', True)
-        try:
-            win.attributes('-fullscreen', True)
-        except tk.TclError:
-            win.geometry("800x600")
 
         def _close(event: Any = None) -> None:
             """Esc / 关闭 = 忽略休息"""
@@ -766,6 +782,14 @@ class StandUpApp:
         self._rest_warn_frame = tk.Frame(win, bg=theme.PRIMARY_DK)
         self._rest_warn_frame.place(relx=0.5, rely=0.16, anchor="center")
 
+        # 内容就绪后再满屏显示：出现即完整，无空白闪烁
+        win.attributes('-topmost', True)
+        try:
+            win.attributes('-fullscreen', True)
+        except tk.TclError:
+            win.geometry("800x600")
+        win.update_idletasks()
+
         # 保存休息时长供倒计时使用
         self._break_seconds = break_minutes * 60
         self.update_rest_countdown()
@@ -788,7 +812,10 @@ class StandUpApp:
             self.rest_countdown_label.config(
                 text=tr("rest_done"), fg=theme.PRIMARY
             )
-            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
+            # 异步播放：不阻塞倒计时循环
+            winsound.PlaySound(
+                "SystemAsterisk", winsound.SND_ALIAS | winsound.SND_ASYNC
+            )
             return
 
         self.rest_countdown_label.config(

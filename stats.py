@@ -28,6 +28,14 @@ def _get_stats_path() -> str:
     return os.path.join(_get_config_dir(), STATS_FILE_NAME)
 
 
+def get_stats_mtime() -> float | None:
+    """统计文件的最后修改时间（不存在返回 None），用于界面缓存失效判断"""
+    try:
+        return os.path.getmtime(_get_stats_path())
+    except OSError:
+        return None
+
+
 def _empty_day() -> dict[str, int]:
     """返回单日统计的空结构"""
     return {
