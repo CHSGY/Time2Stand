@@ -6,11 +6,13 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import os
 import tkinter as tk
 from datetime import date, datetime, timedelta
+from tkinter import filedialog, messagebox
 from typing import Any
 
 from config import _get_config_dir
@@ -176,6 +178,55 @@ def _interruption_rate(day: dict[str, int]) -> str:
     return f"{rate:.0%}"
 
 
+def export_csv(path: str) -> int:
+    """把全部每日统计导出为 CSV（utf-8-sig 便于 Excel 直接打开），返回天数"""
+    days = load_stats()
+    with open(path, "w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            ("date", "work_minutes", "pomodoro_minutes",
+             "rest_completed", "interruptions")
+        )
+        for key in sorted(days):
+            day = days[key]
+            writer.writerow([
+                key,
+                round(day.get("work_seconds", 0) / 60, 1),
+                round(day.get("pomodoro_work_seconds", 0) / 60, 1),
+                day.get("rest_completed", 0),
+                day.get("interruptions", 0),
+            ])
+    logger.info("统计已导出：%s（%d 天）", path, len(days))
+    return len(days)
+
+
+def _export_dialog(parent: tk.Misc) -> None:
+    """弹出保存对话框，把统计数据导出为 CSV"""
+    top = parent.winfo_toplevel()
+    path = filedialog.asksaveasfilename(
+        parent=top,
+        title=tr("export_title"),
+        defaultextension=".csv",
+        initialfile=f"SightHabitKeeper_{date.today().isoformat()}.csv",
+        filetypes=[(tr("export_filetype"), "*.csv")],
+    )
+    if not path:
+        return
+    try:
+        count = export_csv(path)
+    except OSError as e:
+        logger.warning("导出统计失败：%s", e)
+        messagebox.showerror(
+            tr("export_failed_title"), tr("export_failed_msg"), parent=top
+        )
+        return
+    messagebox.showinfo(
+        tr("export_done_title"),
+        tr("export_done_msg", n=count, path=path),
+        parent=top,
+    )
+
+
 def build_dashboard(parent: tk.Misc) -> None:
     """在给定容器内渲染统计看板内容（嵌入主界面选项卡，每次调用重建）"""
     summary = get_summary()
@@ -184,10 +235,19 @@ def build_dashboard(parent: tk.Misc) -> None:
     outer, canvas, content = theme.scrollable(parent, height=396)
     outer.pack(fill="both", expand=True)
 
+    # 导出入口：右上角弱化按钮
+    action = tk.Frame(content, bg=theme.BG)
+    action.pack(fill="x", padx=12, pady=(12, 0))
+    export_btn = tk.Button(
+        action, text=tr("export_btn"), command=lambda: _export_dialog(parent)
+    )
+    theme.style_button(export_btn, "ghost", font=theme.font(9))
+    export_btn.pack(side="right")
+
     theme.label(
         content, tr("dashboard_heading"),
         font=theme.font(13, "bold"),
-    ).pack(pady=(12, 8))
+    ).pack(pady=(6, 8))
 
     def section(title: str, day: dict[str, Any]) -> None:
         """渲染一个汇总区块（白色卡片 + 左名右值行）"""

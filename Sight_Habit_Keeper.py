@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import logging
+import os
+import sys
 import tkinter as tk
 from tkinter import messagebox
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 import winsound
 import random
 import ctypes
 import ctypes.wintypes
 import threading
+import winreg
 
 import pystray
 from PIL import Image, ImageDraw
@@ -85,6 +88,89 @@ def get_idle_seconds() -> int:
     return 0
 
 
+# ---------- 单实例 ----------
+
+_MUTEX_NAME = "Local\\SightHabitKeeper_SingleInstance"
+_mutex_handle: int | None = None
+
+
+def _acquire_single_instance_lock() -> bool:
+    """创建进程级互斥量；已有实例在运行时返回 False"""
+    global _mutex_handle
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.CreateMutexW(None, False, _MUTEX_NAME)
+    if not handle:
+        return True  # 创建失败时不阻止启动
+    if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        kernel32.CloseHandle(handle)
+        return False
+    _mutex_handle = handle
+    return True
+
+
+def _focus_existing_instance() -> bool:
+    """把已有实例的主窗口唤到前台，找不到窗口时返回 False"""
+    user32 = ctypes.windll.user32
+    for title in ("久坐提醒器", "Sit-Less Reminder"):
+        hwnd = user32.FindWindowW(None, title)
+        if hwnd:
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            user32.SetForegroundWindow(hwnd)
+            return True
+    return False
+
+
+def _show_message(title: str, text: str) -> None:
+    """不依赖 Tk 的提示框（第二个实例尚未创建窗口）"""
+    ctypes.windll.user32.MessageBoxW(0, text, title, 0x40)
+
+
+# ---------- 开机自启（HKCU Run） ----------
+
+_AUTOSTART_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+_AUTOSTART_VALUE = "SightHabitKeeper"
+
+
+def _autostart_command() -> str:
+    """开机自启命令：打包后用 exe；源码运行用 pythonw 避免黑窗"""
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
+    pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    exe = pythonw if os.path.isfile(pythonw) else sys.executable
+    return f'"{exe}" "{os.path.abspath(__file__)}"'
+
+
+def _is_autostart_enabled() -> bool:
+    """注册表 Run 项中是否已有本程序的启动项"""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_KEY) as key:
+            winreg.QueryValueEx(key, _AUTOSTART_VALUE)
+        return True
+    except OSError:
+        return False
+
+
+def _set_autostart(enabled: bool) -> bool:
+    """写入或删除 HKCU Run 启动项，成功返回 True"""
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER, _AUTOSTART_KEY, 0, winreg.KEY_SET_VALUE
+        ) as key:
+            if enabled:
+                winreg.SetValueEx(
+                    key, _AUTOSTART_VALUE, 0, winreg.REG_SZ, _autostart_command()
+                )
+            else:
+                try:
+                    winreg.DeleteValue(key, _AUTOSTART_VALUE)
+                except FileNotFoundError:
+                    pass
+        return True
+    except OSError as e:
+        logger.warning("设置开机自启失败：%s", e)
+        return False
+
+
 # ---------- 托盘图标图像 ----------
 
 
@@ -129,6 +215,7 @@ class StandUpApp:
     _tray_thread: threading.Thread | None
     # 空闲检测
     _idle_check_id: str | None
+    _idle_since: datetime | None
     # 休息对话框
     _break_seconds: int
     # 顶部选项卡（主界面 / 统计看板 / 我的成就）
@@ -279,6 +366,7 @@ class StandUpApp:
         self.timer_id = None
         self.start_time = None
         self._idle_check_id = None
+        self._idle_since = None
 
         # 休息状态
         self.rest_start_time = None
@@ -326,10 +414,19 @@ class StandUpApp:
             """完全退出程序"""
             self.root.after(0, self._quit_app)
 
+        def on_toggle_autostart() -> None:
+            """切换开机自启（托盘线程 → 主线程）"""
+            self.root.after(0, self._toggle_autostart)
+
         menu = pystray.Menu(
             pystray.MenuItem(tr("tray_show"), on_show, default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(tr("tray_hide"), on_hide),
+            pystray.MenuItem(
+                tr("tray_autostart"), on_toggle_autostart,
+                checked=lambda item: _is_autostart_enabled(),
+            ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(tr("tray_quit"), on_quit),
         )
 
@@ -367,6 +464,14 @@ class StandUpApp:
         """隐藏主窗口到系统托盘"""
         self.root.withdraw()
         logger.info("主窗口已隐藏到系统托盘")
+
+    def _toggle_autostart(self) -> None:
+        """切换开机自启并刷新托盘菜单勾选状态"""
+        enabled = not _is_autostart_enabled()
+        if _set_autostart(enabled):
+            logger.info("开机自启：%s", "开启" if enabled else "关闭")
+            if self._tray_icon is not None:
+                self._tray_icon.update_menu()
 
     def _quit_app(self) -> None:
         """完全退出程序"""
@@ -539,6 +644,7 @@ class StandUpApp:
             self.countdown_seconds = int(minutes * 60)
             self.timer_running = True
             self.start_time = datetime.now()
+            self._idle_since = None
 
             self.minutes_entry.config(state=tk.DISABLED)
 
@@ -571,10 +677,12 @@ class StandUpApp:
                 self.root.after_cancel(self._idle_check_id)
                 self._idle_check_id = None
 
-            # 统计：手动停止计为打断，并记录已工作时长
+            # 统计：手动停止计为打断，并记录已工作时长（不含空闲时段）
             if self.start_time is not None:
-                worked = int((datetime.now() - self.start_time).total_seconds())
+                end = self._idle_since or datetime.now()
+                worked = max(0, int((end - self.start_time).total_seconds()))
                 stats.record_work(worked, self._mode)
+            self._idle_since = None
             stats.record_interruption()
 
             self.minutes_entry.config(state=tk.NORMAL)
@@ -589,13 +697,30 @@ class StandUpApp:
         if not self.timer_running:
             return
 
-        # 空闲检测：如果用户离开超过5分钟，暂停计时
+        # 空闲检测：离开超过 5 分钟视为暂停；回来后把开始时间顺延相应时长
         idle_secs = get_idle_seconds()
+        now = datetime.now()
         if idle_secs > 300:  # 5分钟无操作
+            if self._idle_since is None:
+                idle_start = now - timedelta(seconds=idle_secs)
+                if self.start_time is not None and idle_start < self.start_time:
+                    idle_start = self.start_time
+                self._idle_since = idle_start
+                logger.info("检测到空闲，暂停计时")
             self._set_status(tr("idle_paused"), theme.AMBER)
             # 不减少剩余时间，继续检测
             self._idle_check_id = self.root.after(5000, self.timer_cycle)
             return
+
+        # 用户回来：把空闲时长从已用时间中扣掉
+        if self._idle_since is not None and self.start_time is not None:
+            paused = (now - self._idle_since).total_seconds()
+            max_pause = (now - self.start_time).total_seconds()
+            shift = min(max(paused, 0.0), max_pause)
+            self.start_time += timedelta(seconds=shift)
+            logger.info("用户回来，计时顺延 %.0f 秒", shift)
+        self._idle_since = None
+        self._idle_check_id = None
 
         if self.start_time is None:  # 理论上不会发生，仅类型收窄
             return
@@ -925,6 +1050,15 @@ if __name__ == "__main__":
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger.info("应用程序启动")
+
+    # 单实例：已有实例时唤起它并退出本次启动，避免出现两套计时器和托盘图标
+    if not _acquire_single_instance_lock():
+        logger.info("检测到已有实例，退出本次启动")
+        i18n.set_language(str(load_config().get("language", "zh")))
+        if not _focus_existing_instance():
+            _show_message(tr("already_running_title"), tr("already_running_msg"))
+        raise SystemExit(0)
+
     root = tk.Tk()
     app = StandUpApp(root)
     root.mainloop()
